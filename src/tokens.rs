@@ -1,9 +1,9 @@
 use anyhow::Result;
+use csv::StringRecord;
 use ethers::{abi::parse_abi, prelude::*};
 use ethers_contract::{Contract, Multicall};
 use ethers_core::types::{BlockId, BlockNumber, TxHash, H160, U256};
-use ethers_providers::{Provider, Ws};
-use std::sync::Arc;
+use std::{str::FromStr, sync::Arc};
 use tokio::task::JoinSet;
 
 use crate::constants::ZERO_ADDRESS;
@@ -17,9 +17,40 @@ pub struct Token {
     pub decimals: u8,
 }
 
+impl From<StringRecord> for Token {
+    fn from(record: StringRecord) -> Self {
+        Self {
+            address: H160::from_str(record.get(0).unwrap()).unwrap(),
+            implementation: match record.get(1) {
+                Some(raw_impl_addr) => match raw_impl_addr {
+                    "" => None,
+                    _ => Some(H160::from_str(raw_impl_addr).unwrap()),
+                },
+                None => None,
+            },
+            name: String::from(record.get(2).unwrap()),
+            symbol: String::from(record.get(3).unwrap()),
+            decimals: record.get(4).unwrap().parse::<u8>().unwrap(),
+        }
+    }
+}
+
 impl Token {
     pub fn add_implementation(&mut self, implementation: Option<H160>) {
         self.implementation = implementation;
+    }
+
+    pub fn cache_row(&self) -> (String, String, String, String, u8) {
+        (
+            format!("{:?}", self.address),
+            match self.implementation {
+                Some(implementation) => format!("{:?}", implementation),
+                None => String::from(""),
+            },
+            self.name.clone(),
+            self.symbol.clone(),
+            self.decimals,
+        )
     }
 }
 

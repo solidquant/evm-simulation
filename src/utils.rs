@@ -23,7 +23,7 @@ pub fn setup_logger() -> Result<()> {
         })
         .chain(std::io::stdout())
         .level(log::LevelFilter::Error)
-        .level_for("foundry_simulation", LevelFilter::Info)
+        .level_for("evm_simulation", LevelFilter::Info)
         .apply()?;
 
     Ok(())

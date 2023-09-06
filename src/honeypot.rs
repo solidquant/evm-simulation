@@ -1,7 +1,7 @@
 use ethers::types::{Block, BlockId, BlockNumber, H160, H256, U256, U64};
 use ethers_providers::Middleware;
 use log::info;
-use std::{collections::HashMap, str::FromStr, sync::Arc};
+use std::{collections::HashMap, path::Path, str::FromStr, sync::Arc};
 
 use crate::pools::Pool;
 use crate::simulator::EvmSimulator;
@@ -112,6 +112,33 @@ impl<M: Middleware + 'static> HoneypotFilter<M> {
     }
 
     pub async fn filter_tokens(&mut self, pools: &Vec<Pool>) {
+        // load cached
+        let token_file_path = Path::new("src/.cached-tokens.csv");
+        let honeypot_file_path = Path::new("src/.cached-honeypot.csv");
+
+        if token_file_path.exists() {
+            let mut reader = csv::Reader::from_path(token_file_path).unwrap();
+            for row in reader.records() {
+                let row = row.unwrap();
+                let token = Token::from(row);
+                self.token_info.insert(token.address, token);
+            }
+        }
+        info!("✔️ Loaded {:?} token info from cache", self.token_info.len());
+
+        if honeypot_file_path.exists() {
+            let mut reader = csv::Reader::from_path(honeypot_file_path).unwrap();
+            for row in reader.records() {
+                let row = row.unwrap();
+                let honeypot_address = H160::from_str(row.get(0).unwrap()).unwrap();
+                self.honeypot.insert(honeypot_address, true);
+            }
+        }
+        info!(
+            "✔️ Loaded {:?} honeypot info from cache",
+            self.honeypot.len()
+        );
+
         self.simulator.deploy_simulator();
 
         for (idx, pool) in pools.iter().enumerate() {
@@ -226,5 +253,18 @@ impl<M: Middleware + 'static> HoneypotFilter<M> {
                 }
             }
         }
+
+        // cache to csv files
+        let mut token_writer = csv::Writer::from_path(token_file_path).unwrap();
+        for (_, info) in &self.token_info {
+            token_writer.serialize(info.cache_row()).unwrap();
+        }
+        token_writer.flush().unwrap();
+
+        let mut honeypot_writer = csv::Writer::from_path(honeypot_file_path).unwrap();
+        for (token, _) in &self.honeypot {
+            honeypot_writer.serialize(token).unwrap();
+        }
+        honeypot_writer.flush().unwrap();
     }
 }
