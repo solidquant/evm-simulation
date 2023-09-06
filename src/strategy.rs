@@ -1,14 +1,14 @@
 use anvil::eth::fees::calculate_next_block_base_fee;
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use cfmms::dex::DexVariant;
-use colored::Colorize;
 use ethers::{
     prelude::*,
     providers::{Middleware, Provider, Ws},
-    types::{Address, BlockId, BlockNumber, H160, U256, U64},
+    types::{BlockId, BlockNumber, H160, U256, U64},
 };
+use foundry_evm::revm::primitives::keccak256;
 use log::info;
-use std::{collections::HashMap, str::FromStr, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 use tokio::sync::broadcast::Sender;
 
 use crate::constants::Env;
@@ -29,11 +29,13 @@ pub async fn get_touched_pools<M: Middleware + 'static>(
     block_number: U64,
     verified_pools: &Vec<Pool>,
     honeypot_filter: &HoneypotFilter<M>,
-) -> Result<()> {
+) -> Result<HashMap<H160, Option<H160>>> {
     // you don't know what transaction will touch the pools you're interested in
     // thus, you need to trace all pending transactions you receive
     // evm tracing can sometimes take a very long time as can be seen from:
     // https://banteg.mirror.xyz/3dbuIlaHh30IPITWzfT1MFfSg6fxSssMqJ7TcjaWecM
+
+    // Also check: https://github.com/ethereum/go-ethereum/pull/25422#discussion_r978789901 for diffMode
     let verified_pools_address: Vec<H160> = verified_pools.into_iter().map(|p| p.address).collect();
     let trace = provider
         .debug_trace_call(
@@ -48,7 +50,11 @@ pub async fn get_touched_pools<M: Middleware + 'static>(
                     tracer: Some(GethDebugTracerType::BuiltInTracer(
                         GethDebugBuiltInTracerType::PreStateTracer,
                     )),
-                    tracer_config: None,
+                    tracer_config: Some(GethDebugTracerConfig::BuiltInTracer(
+                        GethDebugBuiltInTracerConfig::PreStateTracer(PreStateConfig {
+                            diff_mode: Some(true),
+                        }),
+                    )),
                     timeout: None,
                 },
                 state_overrides: None,
@@ -56,22 +62,72 @@ pub async fn get_touched_pools<M: Middleware + 'static>(
         )
         .await?;
 
+    let mut sandwichable_pools = HashMap::new();
+
     match trace {
         GethTrace::Known(known) => match known {
             GethTraceFrame::PreStateTracer(prestate) => match prestate {
-                PreStateFrame::Default(prestate_mode) => {
-                    let touched_accounts = prestate_mode.0;
-
-                    // let touched_pools = Vec::new();
-
-                    for (acc, acc_state) in &touched_accounts {
+                PreStateFrame::Diff(diff) => {
+                    // Step 1: Check if any of the pools I'm monitoring were touched
+                    let mut touched_pools = Vec::new();
+                    for (acc, _) in &diff.post {
                         if verified_pools_address.contains(acc) {
-                            match &acc_state.storage {
-                                Some(state) => {
-                                    info!("{:?}", state);
+                            touched_pools.push(*acc);
+                            sandwichable_pools.insert(*acc, None);
+                        }
+                    }
+
+                    if touched_pools.is_empty() {
+                        return Ok(sandwichable_pools);
+                    }
+
+                    let safe_token_info = &honeypot_filter.safe_token_info;
+                    let balance_slots = &honeypot_filter.balance_slots;
+
+                    // Step 2: Check if the transaction increases the pool's safe token balance (weth/usdt/usdc/dai)
+                    // This means that the safe token price will go down, and the other token price will go up
+                    // Thus, we buy the token in our frontrunning tx, and sell the token in our backrunning tx
+                    for (_, safe_token) in safe_token_info {
+                        let token_prestate = diff.pre.get(&safe_token.address);
+                        match token_prestate {
+                            Some(prestate) => match &prestate.storage {
+                                Some(pre_storage) => {
+                                    let slot = *balance_slots.get(&safe_token.address).unwrap();
+                                    for pool in &touched_pools {
+                                        let balance_slot = keccak256(&abi::encode(&[
+                                            abi::Token::Address((*pool).into()),
+                                            abi::Token::Uint(U256::from(slot)),
+                                        ]));
+                                        if pre_storage.contains_key(&balance_slot.into()) {
+                                            let pre_balance = U256::from(
+                                                pre_storage
+                                                    .get(&balance_slot.into())
+                                                    .unwrap()
+                                                    .to_fixed_bytes(),
+                                            );
+
+                                            let token_poststate =
+                                                diff.post.get(&safe_token.address).unwrap();
+                                            let post_storage = &token_poststate.storage;
+                                            let post_balance = U256::from(
+                                                post_storage
+                                                    .as_ref()
+                                                    .unwrap()
+                                                    .get(&balance_slot.into())
+                                                    .unwrap()
+                                                    .to_fixed_bytes(),
+                                            );
+
+                                            if pre_balance < post_balance {
+                                                sandwichable_pools
+                                                    .insert(*pool, Some(safe_token.address));
+                                            }
+                                        }
+                                    }
                                 }
                                 None => {}
-                            }
+                            },
+                            None => {}
                         }
                     }
                 }
@@ -82,7 +138,7 @@ pub async fn get_touched_pools<M: Middleware + 'static>(
         _ => {}
     }
 
-    Ok(())
+    Ok(sandwichable_pools)
 }
 
 pub async fn event_handler(provider: Arc<Provider<Ws>>, event_sender: Sender<Event>) {
@@ -139,6 +195,7 @@ pub async fn event_handler(provider: Arc<Provider<Ws>>, event_sender: Sender<Eve
             Ok(event) => match event {
                 Event::Block(block) => {
                     new_block = block;
+                    info!("⛓ New Block: {:?}", block);
                 }
                 Event::PendingTx(tx) => {
                     let base_fee_condition =
@@ -159,10 +216,13 @@ pub async fn event_handler(provider: Arc<Provider<Ws>>, event_sender: Sender<Eve
                     )
                     .await
                     {
-                        Ok(_) => {}
+                        Ok(touched_pools) => {
+                            if touched_pools.len() > 0 {
+                                info!("[🌯🌯🌯] Sandwichable pools detected: {:?}", touched_pools);
+                            }
+                        }
                         Err(_) => {}
                     }
-                    // break;
                 }
                 Event::Log(_) => {}
             },
