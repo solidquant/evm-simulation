@@ -198,10 +198,12 @@ pub async fn event_handler(provider: Arc<Provider<Ws>>, event_sender: Sender<Eve
                     info!("⛓ New Block: {:?}", block);
                 }
                 Event::PendingTx(tx) => {
-                    let base_fee_condition =
+                    let base_fee_condition_1 =
                         tx.max_fee_per_gas.unwrap_or_default() < new_block.next_base_fee;
+                    let base_fee_condition_2 =
+                        tx.max_fee_per_gas.unwrap_or_default() < new_block.base_fee;
 
-                    if base_fee_condition {
+                    if base_fee_condition_1 || base_fee_condition_2 {
                         // log_info_warning!("Skipping {:?} mf < nbf", tx.hash);
                         continue;
                     }
@@ -218,7 +220,10 @@ pub async fn event_handler(provider: Arc<Provider<Ws>>, event_sender: Sender<Eve
                     {
                         Ok(touched_pools) => {
                             if touched_pools.len() > 0 {
-                                info!("[🌯🌯🌯] Sandwichable pools detected: {:?}", touched_pools);
+                                info!(
+                                    "[🌯🥪🌯🥪🌯] Sandwichable pools detected: {:?}",
+                                    touched_pools
+                                );
                             }
                         }
                         Err(_) => {}
