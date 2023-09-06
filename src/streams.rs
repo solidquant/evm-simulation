@@ -8,7 +8,7 @@ use std::sync::Arc;
 use tokio::sync::broadcast::Sender;
 use tokio_stream::StreamExt;
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, Copy)]
 pub struct NewBlock {
     pub block_number: U64,
     pub base_fee: U256,

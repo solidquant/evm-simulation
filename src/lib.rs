@@ -5,6 +5,7 @@ pub mod interfaces;
 pub mod pools;
 pub mod sandwich;
 pub mod simulator;
+pub mod strategy;
 pub mod streams;
 pub mod tokens;
 pub mod trace;
