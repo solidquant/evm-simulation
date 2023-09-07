@@ -122,7 +122,7 @@ pub fn simulate_sandwich_bundle<M: Middleware + 'static>(
     let target_token = sandwich.target_token;
     let target_pool = sandwich.target_pool;
 
-    info!("[🔮 Sandwich Bundle Simulation]");
+    info!("\n[🔮 Sandwich Bundle Simulation]");
     info!(
         "- Pool: {:?} / Token: {:?}",
         target_pool.address, target_token.symbol

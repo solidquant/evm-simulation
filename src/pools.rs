@@ -67,6 +67,10 @@ impl Pool {
             self.fee,
         )
     }
+
+    pub fn has_token(&self, token: H160) -> bool {
+        self.token0 == token || self.token1 == token
+    }
 }
 
 pub async fn load_all_pools(
