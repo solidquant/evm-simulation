@@ -4,6 +4,7 @@ use ethers::abi::parse_abi;
 use ethers::prelude::BaseContract;
 use ethers::types::{Bytes, H160, U256};
 
+#[derive(Clone)]
 pub struct SimulatorABI {
     pub abi: BaseContract,
 }

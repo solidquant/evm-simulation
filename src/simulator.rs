@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use bytes::Bytes;
 use ethers::abi;
-use ethers::types::{Block, H160, H256, U256};
+use ethers::types::{Transaction, H160, U256, U64};
 use ethers_providers::Middleware;
 use foundry_evm::{
     executor::{
@@ -10,7 +10,7 @@ use foundry_evm::{
     },
     revm::{
         db::{CacheDB, Database},
-        primitives::{keccak256, AccountInfo, B160, U256 as rU256},
+        primitives::{keccak256, AccountInfo, U256 as rU256},
         EVM,
     },
 };
@@ -19,11 +19,12 @@ use std::{collections::BTreeSet, str::FromStr, sync::Arc};
 use crate::constants::SIMULATOR_CODE;
 use crate::interfaces::{pool::V2PoolABI, simulator::SimulatorABI, token::TokenABI};
 
+#[derive(Clone)]
 pub struct EvmSimulator<M> {
     pub provider: Arc<M>,
     pub owner: H160,
     pub evm: EVM<CacheDB<SharedBackend>>,
-    pub block: Block<H256>,
+    pub block_number: U64,
 
     pub token: TokenABI,
     pub v2_pool: V2PoolABI,
@@ -34,10 +35,10 @@ pub struct EvmSimulator<M> {
 
 #[derive(Debug, Clone)]
 pub struct Tx {
-    pub caller: B160,
-    pub transact_to: TransactTo,
+    pub caller: H160,
+    pub transact_to: H160,
     pub data: Bytes,
-    pub value: rU256,
+    pub value: U256,
     pub gas_limit: u64,
 }
 
@@ -49,7 +50,7 @@ pub struct TxResult {
 }
 
 impl<M: Middleware + 'static> EvmSimulator<M> {
-    pub fn new(provider: Arc<M>, owner: H160, block: Block<H256>) -> Self {
+    pub fn new(provider: Arc<M>, owner: H160, block_number: U64) -> Self {
         let shared_backend = SharedBackend::spawn_backend_thread(
             provider.clone(),
             BlockchainDb::new(
@@ -60,7 +61,7 @@ impl<M: Middleware + 'static> EvmSimulator<M> {
                 },
                 None,
             ),
-            Some(block.number.unwrap().into()),
+            Some(block_number.into()),
         );
         let db = CacheDB::new(shared_backend);
 
@@ -71,14 +72,13 @@ impl<M: Middleware + 'static> EvmSimulator<M> {
         evm.env.cfg.disable_block_gas_limit = true;
         evm.env.cfg.disable_base_fee = true;
 
-        evm.env.block.number = rU256::from(block.number.unwrap().as_u64() + 1);
-        evm.env.block.timestamp = block.timestamp.into();
+        evm.env.block.number = rU256::from(block_number.as_u64() + 1);
 
         Self {
             provider,
             owner,
             evm,
-            block,
+            block_number,
 
             token: TokenABI::new(),
             v2_pool: V2PoolABI::new(),
@@ -89,11 +89,70 @@ impl<M: Middleware + 'static> EvmSimulator<M> {
         }
     }
 
+    pub fn inject_db(&mut self, db: CacheDB<SharedBackend>) {
+        self.evm.database(db);
+    }
+
+    pub fn run_pending_tx(&mut self, tx: &Transaction) -> Result<TxResult> {
+        // We simply need to commit changes to the DB
+        self.evm.env.tx.caller = tx.from.0.into();
+        self.evm.env.tx.transact_to = TransactTo::Call(tx.to.unwrap_or_default().0.into());
+        self.evm.env.tx.data = tx.input.0.clone();
+        self.evm.env.tx.value = tx.value.into();
+        self.evm.env.tx.chain_id = tx.chain_id.map(|id| id.as_u64());
+        self.evm.env.tx.gas_limit = tx.gas.as_u64();
+
+        match tx.transaction_type {
+            Some(U64([0])) => self.evm.env.tx.gas_price = tx.gas_price.unwrap_or_default().into(),
+            Some(_) => {
+                self.evm.env.tx.gas_priority_fee =
+                    tx.max_priority_fee_per_gas.map(|mpf| mpf.into());
+                self.evm.env.tx.gas_price = tx.max_fee_per_gas.unwrap_or_default().into();
+            }
+            None => self.evm.env.tx.gas_price = tx.gas_price.unwrap_or_default().into(),
+        }
+
+        let result = match self.evm.transact_commit() {
+            Ok(result) => result,
+            Err(e) => return Err(anyhow!("EVM call failed: {:?}", e)),
+        };
+
+        let output = match result {
+            ExecutionResult::Success {
+                gas_used,
+                gas_refunded,
+                output,
+                ..
+            } => match output {
+                Output::Call(o) => TxResult {
+                    output: o,
+                    gas_used,
+                    gas_refunded,
+                },
+                Output::Create(o, _) => TxResult {
+                    output: o,
+                    gas_used,
+                    gas_refunded,
+                },
+            },
+            ExecutionResult::Revert { gas_used, output } => {
+                return Err(anyhow!(
+                    "EVM REVERT: {:?} / Gas used: {:?}",
+                    output,
+                    gas_used
+                ))
+            }
+            ExecutionResult::Halt { reason, .. } => return Err(anyhow!("EVM HALT: {:?}", reason)),
+        };
+
+        Ok(output)
+    }
+
     pub fn _call(&mut self, tx: Tx, commit: bool) -> Result<TxResult> {
-        self.evm.env.tx.caller = tx.caller;
-        self.evm.env.tx.transact_to = tx.transact_to;
+        self.evm.env.tx.caller = tx.caller.into();
+        self.evm.env.tx.transact_to = TransactTo::Call(tx.transact_to.into());
         self.evm.env.tx.data = tx.data;
-        self.evm.env.tx.value = tx.value;
+        self.evm.env.tx.value = tx.value.into();
         self.evm.env.tx.gas_limit = 5000000;
 
         let result;
@@ -202,9 +261,9 @@ impl<M: Middleware + 'static> EvmSimulator<M> {
         let calldata = self.token.balance_of_input(account)?;
         let value = self.staticcall(Tx {
             caller: self.owner.into(),
-            transact_to: TransactTo::Call(token.into()),
+            transact_to: token,
             data: calldata.0,
-            value: rU256::ZERO,
+            value: U256::zero(),
             gas_limit: 0,
         })?;
         let out = self.token.balance_of_output(value.output)?;
@@ -225,10 +284,10 @@ impl<M: Middleware + 'static> EvmSimulator<M> {
     pub fn v2_pool_get_reserves(&mut self, pool: H160) -> Result<(u128, u128, u32)> {
         let calldata = self.v2_pool.get_reserves_input()?;
         let value = self.staticcall(Tx {
-            caller: self.owner.into(),
-            transact_to: TransactTo::Call(pool.into()),
+            caller: self.owner,
+            transact_to: pool,
             data: calldata.0,
-            value: rU256::ZERO,
+            value: U256::zero(),
             gas_limit: 0,
         })?;
         let out = self.v2_pool.get_reserves_output(value.output)?;
@@ -255,6 +314,7 @@ impl<M: Middleware + 'static> EvmSimulator<M> {
         target_pool: H160,
         input_token: H160,
         output_token: H160,
+        commit: bool,
     ) -> Result<(U256, U256)> {
         let calldata = self.simulator.v2_simulate_swap_input(
             amount_in,
@@ -262,13 +322,18 @@ impl<M: Middleware + 'static> EvmSimulator<M> {
             input_token,
             output_token,
         )?;
-        let value = self.call(Tx {
-            caller: self.owner.into(),
-            transact_to: TransactTo::Call(self.simulator_address.into()),
+        let tx = Tx {
+            caller: self.owner,
+            transact_to: self.simulator_address,
             data: calldata.0,
-            value: rU256::ZERO,
+            value: U256::zero(),
             gas_limit: 5000000,
-        })?;
+        };
+        let value = if commit {
+            self.call(tx)?
+        } else {
+            self.staticcall(tx)?
+        };
         let out = self.simulator.v2_simulate_swap_output(value.output)?;
         Ok(out)
     }
@@ -283,10 +348,10 @@ impl<M: Middleware + 'static> EvmSimulator<M> {
             .simulator
             .get_amount_out_input(amount_in, reserve_in, reserve_out)?;
         let value = self.staticcall(Tx {
-            caller: self.owner.into(),
-            transact_to: TransactTo::Call(self.simulator_address.into()),
+            caller: self.owner,
+            transact_to: self.simulator_address,
             data: calldata.0,
-            value: rU256::ZERO,
+            value: U256::zero(),
             gas_limit: 5000000,
         })?;
         let out = self.simulator.get_amount_out_output(value.output)?;

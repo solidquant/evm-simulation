@@ -1,6 +1,7 @@
 use anvil::eth::fees::calculate_next_block_base_fee;
 use anyhow::Result;
 use cfmms::dex::DexVariant;
+use colored::Colorize;
 use ethers::{
     prelude::*,
     providers::{Middleware, Provider, Ws},
@@ -8,12 +9,13 @@ use ethers::{
 };
 use foundry_evm::revm::primitives::keccak256;
 use log::info;
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, str::FromStr, sync::Arc};
 use tokio::sync::broadcast::Sender;
 
 use crate::constants::Env;
 use crate::honeypot::HoneypotFilter;
 use crate::pools::{load_all_pools, Pool};
+use crate::sandwich::{simulate_sandwich_bundle, Sandwich, SandwichSimulator};
 use crate::streams::{Event, NewBlock};
 
 #[macro_export]
@@ -27,7 +29,7 @@ pub async fn get_touched_pools<M: Middleware + 'static>(
     provider: Arc<Provider<Ws>>,
     tx: &Transaction,
     block_number: U64,
-    verified_pools: &Vec<Pool>,
+    verified_pools_map: &HashMap<H160, Pool>,
     honeypot_filter: &HoneypotFilter<M>,
 ) -> Result<HashMap<H160, Option<H160>>> {
     // you don't know what transaction will touch the pools you're interested in
@@ -36,7 +38,6 @@ pub async fn get_touched_pools<M: Middleware + 'static>(
     // https://banteg.mirror.xyz/3dbuIlaHh30IPITWzfT1MFfSg6fxSssMqJ7TcjaWecM
 
     // Also check: https://github.com/ethereum/go-ethereum/pull/25422#discussion_r978789901 for diffMode
-    let verified_pools_address: Vec<H160> = verified_pools.into_iter().map(|p| p.address).collect();
     let trace = provider
         .debug_trace_call(
             tx,
@@ -71,7 +72,7 @@ pub async fn get_touched_pools<M: Middleware + 'static>(
                     // Step 1: Check if any of the pools I'm monitoring were touched
                     let mut touched_pools = Vec::new();
                     for (acc, _) in &diff.post {
-                        if verified_pools_address.contains(acc) {
+                        if verified_pools_map.contains_key(&acc) {
                             touched_pools.push(*acc);
                             sandwichable_pools.insert(*acc, None);
                         }
@@ -178,6 +179,11 @@ pub async fn event_handler(provider: Arc<Provider<Ws>>, event_sender: Sender<Eve
         .collect();
     info!("Verified pools only: {:?} pools", verified_pools.len());
 
+    let mut verified_pools_map = HashMap::new();
+    for pool in &verified_pools {
+        verified_pools_map.insert(pool.address, pool.clone());
+    }
+
     let mut event_receiver = event_sender.subscribe();
 
     let mut new_block = NewBlock {
@@ -198,22 +204,18 @@ pub async fn event_handler(provider: Arc<Provider<Ws>>, event_sender: Sender<Eve
                     info!("⛓ New Block: {:?}", block);
                 }
                 Event::PendingTx(tx) => {
-                    let base_fee_condition_1 =
-                        tx.max_fee_per_gas.unwrap_or_default() < new_block.next_base_fee;
-                    let base_fee_condition_2 =
+                    let base_fee_condition =
                         tx.max_fee_per_gas.unwrap_or_default() < new_block.base_fee;
 
-                    if base_fee_condition_1 || base_fee_condition_2 {
-                        // log_info_warning!("Skipping {:?} mf < nbf", tx.hash);
+                    if base_fee_condition {
                         continue;
                     }
 
-                    // info!("Block #{:?}: {:?}", new_block.block_number, tx.hash);
                     match get_touched_pools(
                         provider.clone(),
                         &tx,
                         new_block.block_number,
-                        &verified_pools,
+                        &verified_pools_map,
                         &honeypot_filter,
                     )
                     .await
@@ -224,6 +226,58 @@ pub async fn event_handler(provider: Arc<Provider<Ws>>, event_sender: Sender<Eve
                                     "[🌯🥪🌯🥪🌯] Sandwichable pools detected: {:?}",
                                     touched_pools
                                 );
+
+                                let owner =
+                                    H160::from_str("0x001a06BF8cE4afdb3f5618f6bafe35e9Fc09F187")
+                                        .unwrap();
+
+                                for (touched_pool, use_token) in &touched_pools {
+                                    match use_token {
+                                        Some(safe_token) => {
+                                            let target_token = honeypot_filter
+                                                .safe_token_info
+                                                .get(safe_token)
+                                                .unwrap();
+                                            let target_pool =
+                                                verified_pools_map.get(touched_pool).unwrap();
+                                            let balance_slot = honeypot_filter
+                                                .balance_slots
+                                                .get(safe_token)
+                                                .unwrap();
+                                            let amount_in = U256::from(1)
+                                                .checked_mul(
+                                                    U256::from(10)
+                                                        .pow(U256::from(target_token.decimals)),
+                                                )
+                                                .unwrap();
+
+                                            let sandwich = Sandwich {
+                                                amount_in,
+                                                balance_slot: *balance_slot,
+                                                target_token: target_token.clone(),
+                                                target_pool: target_pool.clone(),
+                                                meat_tx: tx.clone(),
+                                            };
+
+                                            match simulate_sandwich_bundle(
+                                                sandwich,
+                                                provider.clone(),
+                                                owner,
+                                                new_block.block_number,
+                                                None,
+                                            ) {
+                                                Ok(profit) => info!(
+                                                    "Simulation was successful. Profit: {:?}",
+                                                    profit
+                                                ),
+                                                Err(e) => {
+                                                    info!("Simulation failed. Error: {:?}", e)
+                                                }
+                                            }
+                                        }
+                                        None => {}
+                                    }
+                                }
                             }
                         }
                         Err(_) => {}

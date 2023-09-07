@@ -4,6 +4,7 @@ use ethers::abi::parse_abi;
 use ethers::prelude::BaseContract;
 use ethers::types::Bytes;
 
+#[derive(Clone)]
 pub struct V2PoolABI {
     pub abi: BaseContract,
 }

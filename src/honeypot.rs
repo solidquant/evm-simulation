@@ -39,7 +39,7 @@ pub struct HoneypotFilter<M> {
 impl<M: Middleware + 'static> HoneypotFilter<M> {
     pub fn new(provider: Arc<M>, block: Block<H256>) -> Self {
         let owner = H160::from_str("0x001a06BF8cE4afdb3f5618f6bafe35e9Fc09F187").unwrap();
-        let simulator = EvmSimulator::new(provider.clone(), owner, block);
+        let simulator = EvmSimulator::new(provider.clone(), owner, block.number.unwrap());
         let safe_tokens = SafeTokens::new();
         let token_info = HashMap::new();
         let safe_token_info = HashMap::new();
@@ -59,7 +59,7 @@ impl<M: Middleware + 'static> HoneypotFilter<M> {
         // Get safe_token_info using the four following tokens that are widely used as safe tokens
         let provider = &self.simulator.provider;
         let owner = self.simulator.owner;
-        let block = &self.simulator.block;
+        let block_number = &self.simulator.block_number;
 
         let tracer = EvmTracer::new(provider.clone());
 
@@ -69,7 +69,7 @@ impl<M: Middleware + 'static> HoneypotFilter<M> {
             .provider
             .get_transaction_count(
                 owner,
-                Some(BlockId::Number(BlockNumber::Number(block.number.unwrap()))),
+                Some(BlockId::Number(BlockNumber::Number(*block_number))),
             )
             .await
             .unwrap();
@@ -87,7 +87,7 @@ impl<M: Middleware + 'static> HoneypotFilter<M> {
                         owner,
                         nonce,
                         U64::from(chain_id.as_u64()),
-                        block.number.unwrap().as_u64(),
+                        block_number.as_u64(),
                     )
                     .await
                 {
@@ -96,9 +96,7 @@ impl<M: Middleware + 'static> HoneypotFilter<M> {
                             self.balance_slots.insert(token, slot.1);
                             let mut info = get_token_info(provider.clone(), token).await.unwrap();
                             info!("{} ({:?}): {:?}", info.name, token, slot.1);
-                            match get_implementation(provider.clone(), token, block.number.unwrap())
-                                .await
-                            {
+                            match get_implementation(provider.clone(), token, *block_number).await {
                                 Ok(implementation) => info.add_implementation(implementation),
                                 Err(_) => {}
                             }
@@ -205,6 +203,7 @@ impl<M: Middleware + 'static> HoneypotFilter<M> {
                     pool.address,
                     safe_token,
                     test_token,
+                    true,
                 );
                 let out = match buy_output {
                     Ok(out) => out,
@@ -223,6 +222,7 @@ impl<M: Middleware + 'static> HoneypotFilter<M> {
                         pool.address,
                         test_token,
                         safe_token,
+                        true,
                     );
                     let out = match sell_output {
                         Ok(out) => out,

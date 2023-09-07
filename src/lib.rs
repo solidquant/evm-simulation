@@ -1,4 +1,3 @@
-pub mod arbitrage;
 pub mod constants;
 pub mod honeypot;
 pub mod interfaces;
