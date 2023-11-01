@@ -41,7 +41,7 @@ impl ArbPath {
 pub fn generate_triangular_paths(pools: &Vec<Pool>, token_in: H160) -> Vec<ArbPath> {
     let start_time = Instant::now();
 
-    let token_out = token_in.clone();
+    let token_out = token_in;
     let mut paths = Vec::new();
 
     let pb = ProgressBar::new(pools.len() as u64);
@@ -108,9 +108,9 @@ pub fn generate_triangular_paths(pools: &Vec<Pool>, token_in: H160) -> Vec<ArbPa
                                     pool_1: pool_1.clone(),
                                     pool_2: pool_2.clone(),
                                     pool_3: pool_3.clone(),
-                                    zero_for_one_1: zero_for_one_1,
-                                    zero_for_one_2: zero_for_one_2,
-                                    zero_for_one_3: zero_for_one_3,
+                                    zero_for_one_1,
+                                    zero_for_one_2,
+                                    zero_for_one_3,
                                 };
 
                                 paths.push(arb_path);

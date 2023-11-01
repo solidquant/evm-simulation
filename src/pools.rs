@@ -98,7 +98,7 @@ pub async fn load_all_pools(
         .into_iter()
         .map(|(address, variant, number)| {
             Dex::new(
-                H160::from_str(&address).unwrap(),
+                H160::from_str(address).unwrap(),
                 variant,
                 number,
                 Some(3000),
@@ -133,7 +133,7 @@ pub async fn load_all_pools(
     info!("Synced to {} pools", pools_vec.len());
 
     let mut writer = csv::Writer::from_path(file_path)?;
-    writer.write_record(&[
+    writer.write_record([
         "address",
         "version",
         "token0",

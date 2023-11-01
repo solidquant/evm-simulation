@@ -1,13 +1,13 @@
 use anvil::eth::fees::calculate_next_block_base_fee;
 use anyhow::Result;
 use cfmms::dex::DexVariant;
-use colored::Colorize;
 use ethers::{
     prelude::*,
     providers::{Middleware, Provider, Ws},
     types::{BlockId, BlockNumber, H160, U256, U64},
 };
 use foundry_evm::revm::primitives::keccak256;
+use foundry_utils::types::ToEthers;
 use log::info;
 use std::{collections::HashMap, str::FromStr, sync::Arc};
 use tokio::sync::broadcast::Sender;
@@ -15,7 +15,7 @@ use tokio::sync::broadcast::Sender;
 use crate::constants::Env;
 use crate::honeypot::HoneypotFilter;
 use crate::pools::{load_all_pools, Pool};
-use crate::sandwich::{simulate_sandwich_bundle, Sandwich, SandwichSimulator};
+use crate::sandwich::{simulate_sandwich_bundle, Sandwich};
 use crate::streams::{Event, NewBlock};
 
 #[macro_export]
@@ -59,6 +59,7 @@ pub async fn get_touched_pools<M: Middleware + 'static>(
                     timeout: None,
                 },
                 state_overrides: None,
+                block_overrides: None,
             },
         )
         .await?;
@@ -72,7 +73,7 @@ pub async fn get_touched_pools<M: Middleware + 'static>(
                     // Step 1: Check if any of the pools I'm monitoring were touched
                     let mut touched_pools = Vec::new();
                     for (acc, _) in &diff.post {
-                        if verified_pools_map.contains_key(&acc) {
+                        if verified_pools_map.contains_key(acc) {
                             touched_pools.push(*acc);
                             sandwichable_pools.insert(*acc, None);
                         }
@@ -96,13 +97,13 @@ pub async fn get_touched_pools<M: Middleware + 'static>(
                                     let slot = *balance_slots.get(&safe_token.address).unwrap();
                                     for pool in &touched_pools {
                                         let balance_slot = keccak256(&abi::encode(&[
-                                            abi::Token::Address((*pool).into()),
+                                            abi::Token::Address(*pool),
                                             abi::Token::Uint(U256::from(slot)),
                                         ]));
-                                        if pre_storage.contains_key(&balance_slot.into()) {
+                                        if pre_storage.contains_key(&balance_slot.to_ethers()) {
                                             let pre_balance = U256::from(
                                                 pre_storage
-                                                    .get(&balance_slot.into())
+                                                    .get(&balance_slot.to_ethers())
                                                     .unwrap()
                                                     .to_fixed_bytes(),
                                             );
@@ -114,7 +115,7 @@ pub async fn get_touched_pools<M: Middleware + 'static>(
                                                 post_storage
                                                     .as_ref()
                                                     .unwrap()
-                                                    .get(&balance_slot.into())
+                                                    .get(&balance_slot.to_ethers())
                                                     .unwrap()
                                                     .to_fixed_bytes(),
                                             );
@@ -162,7 +163,7 @@ pub async fn event_handler(provider: Arc<Provider<Ws>>, event_sender: Sender<Eve
 
     let mut honeypot_filter = HoneypotFilter::new(provider.clone(), block.clone());
     honeypot_filter.setup().await;
-    honeypot_filter
+    let _ = honeypot_filter
         .filter_tokens(&pools[0..3000].to_vec())
         .await;
 
@@ -221,7 +222,7 @@ pub async fn event_handler(provider: Arc<Provider<Ws>>, event_sender: Sender<Eve
                     .await
                     {
                         Ok(touched_pools) => {
-                            if touched_pools.len() > 0 {
+                            if !touched_pools.is_empty() {
                                 info!(
                                     "[🌯🥪🌯🥪🌯] Sandwichable pools detected: {:?}",
                                     touched_pools

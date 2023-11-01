@@ -1,7 +1,7 @@
 use anyhow::Result;
 use ethers::types::{Transaction, H160, U256, U64};
 use ethers_providers::Middleware;
-use foundry_evm::{executor::fork::SharedBackend, revm::db::CacheDB};
+use foundry_evm::{fork::SharedBackend, revm::db::CacheDB};
 use log::info;
 use std::{collections::HashMap, sync::Arc};
 

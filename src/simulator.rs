@@ -1,19 +1,21 @@
+use alloy_primitives::B256;
 use anyhow::{anyhow, Result};
 use bytes::Bytes;
 use ethers::abi;
 use ethers::types::{Transaction, H160, U256, U64};
 use ethers_providers::Middleware;
 use foundry_evm::{
-    executor::{
-        fork::{BlockchainDb, BlockchainDbMeta, SharedBackend},
-        Bytecode, ExecutionResult, Output, TransactTo,
-    },
+    fork::{BlockchainDb, BlockchainDbMeta, SharedBackend},
     revm::{
         db::{CacheDB, Database},
-        primitives::{keccak256, AccountInfo, U256 as rU256},
+        primitives::{
+            keccak256, AccountInfo, Bytecode, ExecutionResult, Output, TransactTo, KECCAK_EMPTY,
+            U256 as rU256,
+        },
         EVM,
     },
 };
+use foundry_utils::types::{ToAlloy, ToEthers};
 use std::{collections::BTreeSet, str::FromStr, sync::Arc};
 
 use crate::constants::SIMULATOR_CODE;
@@ -97,19 +99,21 @@ impl<M: Middleware + 'static> EvmSimulator<M> {
         // We simply need to commit changes to the DB
         self.evm.env.tx.caller = tx.from.0.into();
         self.evm.env.tx.transact_to = TransactTo::Call(tx.to.unwrap_or_default().0.into());
-        self.evm.env.tx.data = tx.input.0.clone();
-        self.evm.env.tx.value = tx.value.into();
+        self.evm.env.tx.data = tx.input.0.clone().into();
+        self.evm.env.tx.value = tx.value.to_alloy();
         self.evm.env.tx.chain_id = tx.chain_id.map(|id| id.as_u64());
         self.evm.env.tx.gas_limit = tx.gas.as_u64();
 
         match tx.transaction_type {
-            Some(U64([0])) => self.evm.env.tx.gas_price = tx.gas_price.unwrap_or_default().into(),
+            Some(U64([0])) => {
+                self.evm.env.tx.gas_price = tx.gas_price.unwrap_or_default().to_alloy()
+            }
             Some(_) => {
                 self.evm.env.tx.gas_priority_fee =
-                    tx.max_priority_fee_per_gas.map(|mpf| mpf.into());
-                self.evm.env.tx.gas_price = tx.max_fee_per_gas.unwrap_or_default().into();
+                    tx.max_priority_fee_per_gas.map(|mpf| mpf.to_alloy());
+                self.evm.env.tx.gas_price = tx.max_fee_per_gas.unwrap_or_default().to_alloy();
             }
-            None => self.evm.env.tx.gas_price = tx.gas_price.unwrap_or_default().into(),
+            None => self.evm.env.tx.gas_price = tx.gas_price.unwrap_or_default().to_alloy(),
         }
 
         let result = match self.evm.transact_commit() {
@@ -125,12 +129,12 @@ impl<M: Middleware + 'static> EvmSimulator<M> {
                 ..
             } => match output {
                 Output::Call(o) => TxResult {
-                    output: o,
+                    output: o.into(),
                     gas_used,
                     gas_refunded,
                 },
                 Output::Create(o, _) => TxResult {
-                    output: o,
+                    output: o.into(),
                     gas_used,
                     gas_refunded,
                 },
@@ -149,10 +153,10 @@ impl<M: Middleware + 'static> EvmSimulator<M> {
     }
 
     pub fn _call(&mut self, tx: Tx, commit: bool) -> Result<TxResult> {
-        self.evm.env.tx.caller = tx.caller.into();
-        self.evm.env.tx.transact_to = TransactTo::Call(tx.transact_to.into());
-        self.evm.env.tx.data = tx.data;
-        self.evm.env.tx.value = tx.value.into();
+        self.evm.env.tx.caller = tx.caller.to_alloy();
+        self.evm.env.tx.transact_to = TransactTo::Call(tx.transact_to.to_alloy());
+        self.evm.env.tx.data = tx.data.into();
+        self.evm.env.tx.value = tx.value.to_alloy();
         self.evm.env.tx.gas_limit = 5000000;
 
         let result;
@@ -178,12 +182,12 @@ impl<M: Middleware + 'static> EvmSimulator<M> {
                 ..
             } => match output {
                 Output::Call(o) => TxResult {
-                    output: o,
+                    output: o.into(),
                     gas_used,
                     gas_refunded,
                 },
                 Output::Create(o, _) => TxResult {
-                    output: o,
+                    output: o.into(),
                     gas_used,
                     gas_refunded,
                 },
@@ -215,22 +219,22 @@ impl<M: Middleware + 'static> EvmSimulator<M> {
             .db
             .as_mut()
             .unwrap()
-            .basic(self.owner.into())
+            .basic(self.owner.to_alloy())
             .unwrap()
             .unwrap();
-        acc.balance.into()
+        acc.balance.to_ethers()
     }
 
     pub fn set_eth_balance(&mut self, balance: u32) {
         let user_balance = rU256::from(balance)
             .checked_mul(rU256::from(10).pow(rU256::from(18)))
             .unwrap();
-        let user_info = AccountInfo::new(user_balance, 0, Bytecode::default());
+        let user_info = AccountInfo::new(user_balance, 0, KECCAK_EMPTY, Bytecode::default());
         self.evm
             .db
             .as_mut()
             .unwrap()
-            .insert_account_info(self.owner.into(), user_info);
+            .insert_account_info(self.owner.to_alloy(), user_info);
     }
 
     // ERC-20 Token functions
@@ -242,8 +246,8 @@ impl<M: Middleware + 'static> EvmSimulator<M> {
         slot: u32,
         balance: u32,
     ) {
-        let slot = keccak256(&abi::encode(&[
-            abi::Token::Address(account.into()),
+        let slot = keccak256(abi::encode(&[
+            abi::Token::Address(account),
             abi::Token::Uint(U256::from(slot)),
         ]));
         let target_balance = rU256::from(balance)
@@ -253,14 +257,14 @@ impl<M: Middleware + 'static> EvmSimulator<M> {
             .db
             .as_mut()
             .unwrap()
-            .insert_account_storage(token.into(), slot.into(), target_balance)
+            .insert_account_storage(token.to_alloy(), slot.into(), target_balance)
             .unwrap();
     }
 
     pub fn token_balance_of(&mut self, token: H160, account: H160) -> Result<U256> {
         let calldata = self.token.balance_of_input(account)?;
         let value = self.staticcall(Tx {
-            caller: self.owner.into(),
+            caller: self.owner,
             transact_to: token,
             data: calldata.0,
             value: U256::zero(),
@@ -277,7 +281,7 @@ impl<M: Middleware + 'static> EvmSimulator<M> {
             .db
             .as_mut()
             .unwrap()
-            .insert_account_storage(pool.into(), slot.into(), reserves)
+            .insert_account_storage(pool.to_alloy(), slot, reserves)
             .unwrap();
     }
 
@@ -296,16 +300,18 @@ impl<M: Middleware + 'static> EvmSimulator<M> {
 
     // Simulator functions
     pub fn deploy_simulator(&mut self) {
+        let code = Bytecode::new_raw((*SIMULATOR_CODE.0).into());
         let contract_info = AccountInfo::new(
             rU256::ZERO,
             0,
-            Bytecode::new_raw((*SIMULATOR_CODE.0).into()),
+            B256::from_slice(&keccak256(code.bytes())[..]),
+            code,
         );
         self.evm
             .db
             .as_mut()
             .unwrap()
-            .insert_account_info(self.simulator_address.into(), contract_info);
+            .insert_account_info(self.simulator_address.to_alloy(), contract_info);
     }
 
     pub fn v2_simulate_swap(

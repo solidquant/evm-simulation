@@ -1,12 +1,14 @@
 use ethers::types::{Block, BlockId, BlockNumber, H160, H256, U256, U64};
 use ethers_providers::Middleware;
 use log::info;
-use std::{collections::HashMap, path::Path, str::FromStr, sync::Arc};
+use std::{collections::HashMap, str::FromStr, sync::Arc};
 
 use crate::pools::Pool;
 use crate::simulator::EvmSimulator;
 use crate::tokens::{get_implementation, get_token_info, Token};
 use crate::trace::EvmTracer;
+
+const WETH_SWAP_AMOUNT: f64 = 0.1;
 
 #[derive(Debug, Clone)]
 pub struct SafeTokens {
@@ -74,13 +76,14 @@ impl<M: Middleware + 'static> HoneypotFilter<M> {
             .await
             .unwrap();
 
-        for token in vec![
+        for token in [
             self.safe_tokens.usdt,
             self.safe_tokens.weth,
             self.safe_tokens.usdc,
             self.safe_tokens.dai,
         ] {
-            if !self.safe_token_info.contains_key(&token) {
+            if let std::collections::hash_map::Entry::Vacant(e) = self.safe_token_info.entry(token)
+            {
                 match tracer
                     .find_balance_slot(
                         token,
@@ -95,12 +98,11 @@ impl<M: Middleware + 'static> HoneypotFilter<M> {
                         if slot.0 {
                             self.balance_slots.insert(token, slot.1);
                             let mut info = get_token_info(provider.clone(), token).await.unwrap();
-                            info!("{} ({:?}): {:?}", info.name, token, slot.1);
                             match get_implementation(provider.clone(), token, *block_number).await {
                                 Ok(implementation) => info.add_implementation(implementation),
                                 Err(_) => {}
                             }
-                            self.safe_token_info.insert(token, info);
+                            e.insert(info);
                         }
                     }
                     Err(_) => {}
@@ -109,35 +111,13 @@ impl<M: Middleware + 'static> HoneypotFilter<M> {
         }
     }
 
-    pub async fn filter_tokens(&mut self, pools: &Vec<Pool>) {
-        // load cached
-        let token_file_path = Path::new("src/.cached-tokens.csv");
-        let honeypot_file_path = Path::new("src/.cached-honeypot.csv");
-
-        if token_file_path.exists() {
-            let mut reader = csv::Reader::from_path(token_file_path).unwrap();
-            for row in reader.records() {
-                let row = row.unwrap();
-                let token = Token::from(row);
-                self.token_info.insert(token.address, token);
-            }
-        }
-        info!("✔️ Loaded {:?} token info from cache", self.token_info.len());
-
-        if honeypot_file_path.exists() {
-            let mut reader = csv::Reader::from_path(honeypot_file_path).unwrap();
-            for row in reader.records() {
-                let row = row.unwrap();
-                let honeypot_address = H160::from_str(row.get(0).unwrap()).unwrap();
-                self.honeypot.insert(honeypot_address, true);
-            }
-        }
-        info!(
-            "✔️ Loaded {:?} honeypot info from cache",
-            self.honeypot.len()
-        );
-
+    pub async fn filter_tokens(
+        &mut self,
+        pools: &Vec<Pool>,
+    ) -> Result<Vec<H160>, Box<dyn std::error::Error>> {
         self.simulator.deploy_simulator();
+
+        let mut honeypot: Vec<H160> = vec![];
 
         for (idx, pool) in pools.iter().enumerate() {
             let token0_is_safe = self.safe_token_info.contains_key(&pool.token0);
@@ -165,9 +145,10 @@ impl<M: Middleware + 'static> HoneypotFilter<M> {
                 // We take extra measures to filter out the pools with too little liquidity
                 // Using the below amount to test swaps, we know that there's enough liquidity in the pool
                 let mut amount_in_u32 = 1;
+                let mut amount_in_f64 = 1.0;
 
                 if safe_token == self.safe_tokens.weth {
-                    amount_in_u32 = 20;
+                    amount_in_f64 = WETH_SWAP_AMOUNT;
                 } else if safe_token == self.safe_tokens.usdt {
                     amount_in_u32 = 10000;
                 } else if safe_token == self.safe_tokens.usdc {
@@ -193,9 +174,13 @@ impl<M: Middleware + 'static> HoneypotFilter<M> {
                     idx, safe_token_info.symbol, test_token
                 );
 
-                let amount_in = U256::from(amount_in_u32)
-                    .checked_mul(U256::from(10).pow(U256::from(safe_token_info.decimals)))
-                    .unwrap();
+                let amount_in = if safe_token == self.safe_tokens.weth {
+                    U256::from((amount_in_f64 * 10f64.powi(18)) as u64)
+                } else {
+                    U256::from(amount_in_u32)
+                        .checked_mul(U256::from(10).pow(U256::from(safe_token_info.decimals)))
+                        .unwrap()
+                };
 
                 // Buy Test
                 let buy_output = self.simulator.v2_simulate_swap(
@@ -209,7 +194,8 @@ impl<M: Middleware + 'static> HoneypotFilter<M> {
                     Ok(out) => out,
                     Err(e) => {
                         info!("<BUY ERROR> {:?}", e);
-                        self.honeypot.insert(test_token, true);
+                        // self.honeypot.insert(test_token, true);
+                        honeypot.push(test_token);
                         continue;
                     }
                 };
@@ -228,7 +214,8 @@ impl<M: Middleware + 'static> HoneypotFilter<M> {
                         Ok(out) => out,
                         Err(e) => {
                             info!("<SELL ERROR> {:?}", e);
-                            self.honeypot.insert(test_token, true);
+                            // self.honeypot.insert(test_token, true);
+                            honeypot.push(test_token);
                             continue;
                         }
                     };
@@ -246,25 +233,15 @@ impl<M: Middleware + 'static> HoneypotFilter<M> {
                             Err(_) => {}
                         }
                     } else {
-                        self.honeypot.insert(test_token, true);
+                        // self.honeypot.insert(test_token, true);
+                        continue;
                     }
                 } else {
-                    self.honeypot.insert(test_token, true);
+                    // self.honeypot.insert(test_token, true);
+                    continue;
                 }
             }
         }
-
-        // cache to csv files
-        let mut token_writer = csv::Writer::from_path(token_file_path).unwrap();
-        for (_, info) in &self.token_info {
-            token_writer.serialize(info.cache_row()).unwrap();
-        }
-        token_writer.flush().unwrap();
-
-        let mut honeypot_writer = csv::Writer::from_path(honeypot_file_path).unwrap();
-        for (token, _) in &self.honeypot {
-            honeypot_writer.serialize(token).unwrap();
-        }
-        honeypot_writer.flush().unwrap();
+        Ok(honeypot)
     }
 }
