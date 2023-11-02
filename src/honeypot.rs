@@ -9,6 +9,7 @@ use crate::tokens::{get_implementation, get_token_info, Token};
 use crate::trace::EvmTracer;
 
 const WETH_SWAP_AMOUNT: f64 = 0.1;
+const TAX_CRITERIA: f64 = 0.1;
 
 #[derive(Debug, Clone)]
 pub struct SafeTokens {
@@ -36,6 +37,8 @@ pub struct HoneypotFilter<M> {
     pub safe_token_info: HashMap<H160, Token>,
     pub balance_slots: HashMap<H160, u32>,
     pub honeypot: HashMap<H160, bool>,
+    pub buy_tax: f64,
+    pub sell_tax: f64,
 }
 
 impl<M: Middleware + 'static> HoneypotFilter<M> {
@@ -54,6 +57,8 @@ impl<M: Middleware + 'static> HoneypotFilter<M> {
             safe_token_info,
             balance_slots,
             honeypot,
+            buy_tax: 0.0,
+            sell_tax: 0.0,
         }
     }
 
@@ -194,7 +199,16 @@ impl<M: Middleware + 'static> HoneypotFilter<M> {
                     }
                 };
 
-                if out.0 == out.1 {
+                let out_ratio = out.0.checked_sub(out.1).unwrap();
+                let buy_tax_rate = out_ratio
+                    .checked_mul(U256::from(10000))
+                    .unwrap()
+                    .checked_div(out.0)
+                    .unwrap();
+                let buy_tax_rate = buy_tax_rate.as_u64() as f64 / 10000.0;
+                self.buy_tax = buy_tax_rate;
+
+                if buy_tax_rate < TAX_CRITERIA {
                     // Sell Test
                     let amount_in = out.1;
                     let sell_output = self.simulator.v2_simulate_swap(
@@ -213,7 +227,16 @@ impl<M: Middleware + 'static> HoneypotFilter<M> {
                         }
                     };
 
-                    if out.0 == out.1 {
+                    let out_ratio = out.0.checked_sub(out.1).unwrap();
+                    let sell_tax_rate = out_ratio
+                        .checked_mul(U256::from(10000))
+                        .unwrap()
+                        .checked_div(out.0)
+                        .unwrap();
+                    let sell_tax_rate = sell_tax_rate.as_u64() as f64 / 10000.0;
+                    self.sell_tax = sell_tax_rate;
+
+                    if sell_tax_rate < TAX_CRITERIA {
                         match get_token_info(self.simulator.provider.clone(), test_token).await {
                             Ok(info) => {
                                 info!(
@@ -233,5 +256,13 @@ impl<M: Middleware + 'static> HoneypotFilter<M> {
                 }
             }
         }
+    }
+
+    pub fn get_tax_rate(&self) -> (f64, f64) {
+        (self.buy_tax, self.sell_tax)
+    }
+
+    pub fn is_honeypot(&self, token: H160) -> bool {
+        self.honeypot.contains_key(&token)
     }
 }
