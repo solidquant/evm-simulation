@@ -111,13 +111,8 @@ impl<M: Middleware + 'static> HoneypotFilter<M> {
         }
     }
 
-    pub async fn filter_tokens(
-        &mut self,
-        pools: &Vec<Pool>,
-    ) -> Result<Vec<H160>, Box<dyn std::error::Error>> {
+    pub async fn filter_tokens(&mut self, pools: &Vec<Pool>) {
         self.simulator.deploy_simulator();
-
-        let mut honeypot: Vec<H160> = vec![];
 
         for (idx, pool) in pools.iter().enumerate() {
             let token0_is_safe = self.safe_token_info.contains_key(&pool.token0);
@@ -194,8 +189,7 @@ impl<M: Middleware + 'static> HoneypotFilter<M> {
                     Ok(out) => out,
                     Err(e) => {
                         info!("<BUY ERROR> {:?}", e);
-                        // self.honeypot.insert(test_token, true);
-                        honeypot.push(test_token);
+                        self.honeypot.insert(test_token, true);
                         continue;
                     }
                 };
@@ -214,8 +208,7 @@ impl<M: Middleware + 'static> HoneypotFilter<M> {
                         Ok(out) => out,
                         Err(e) => {
                             info!("<SELL ERROR> {:?}", e);
-                            // self.honeypot.insert(test_token, true);
-                            honeypot.push(test_token);
+                            self.honeypot.insert(test_token, true);
                             continue;
                         }
                     };
@@ -233,15 +226,12 @@ impl<M: Middleware + 'static> HoneypotFilter<M> {
                             Err(_) => {}
                         }
                     } else {
-                        // self.honeypot.insert(test_token, true);
-                        continue;
+                        self.honeypot.insert(test_token, true);
                     }
                 } else {
-                    // self.honeypot.insert(test_token, true);
-                    continue;
+                    self.honeypot.insert(test_token, true);
                 }
             }
         }
-        Ok(honeypot)
     }
 }
