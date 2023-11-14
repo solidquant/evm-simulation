@@ -1,4 +1,4 @@
-use alloy_primitives::B256;
+use alloy_primitives::{B256, Address};
 use anyhow::{anyhow, Result};
 use bytes::Bytes;
 use ethers::abi;
@@ -18,7 +18,7 @@ use foundry_evm::{
 use foundry_utils::types::{ToAlloy, ToEthers};
 use std::{collections::BTreeSet, str::FromStr, sync::Arc};
 
-use crate::constants::SIMULATOR_CODE;
+use crate::constants::{SIMULATOR_CODE, IMPLEMENTATION_SLOTS};
 use crate::interfaces::{pool::V2PoolABI, simulator::SimulatorABI, token::TokenABI};
 
 #[derive(Clone)]
@@ -362,5 +362,27 @@ impl<M: Middleware + 'static> EvmSimulator<M> {
         })?;
         let out = self.simulator.get_amount_out_output(value.output)?;
         Ok(out)
+    }
+
+    pub fn is_proxy(
+        &mut self,
+        token: Address,
+    ) -> bool {
+        let mut is_proxy = false;
+               
+        for slot in IMPLEMENTATION_SLOTS.iter() {
+            let impl_addr = self
+            
+                .evm
+                .db
+                .as_mut()
+                .unwrap()
+                .storage(token, slot.to_alloy()).unwrap();
+            if impl_addr.count_zeros() != 256 {
+                is_proxy = true;
+            }
+        }
+    
+        is_proxy
     }
 }
