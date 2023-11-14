@@ -11,6 +11,8 @@ import "./utils/SafeERC20.sol";
 contract Simulator {
     using SafeERC20 for IERC20;
 
+    uint32 public constant TAX_CRITERIA = 10;
+
     function v2SimulateSwap(
         uint256 amountIn,
         address targetPair,
@@ -41,6 +43,9 @@ contract Simulator {
         uint256 actualAmountIn = IERC20(inputToken).balanceOf(targetPair) -
             reserveIn;
         amountOut = this.getAmountOut(actualAmountIn, reserveIn, reserveOut);
+
+        // Take the tax into account
+        amountOut = (amountOut * (100 - TAX_CRITERIA)) / 100;
 
         // If the token is taxed, you won't receive amountOut back, and the swap will revert
         uint256 outBalanceBefore = IERC20(outputToken).balanceOf(address(this));
