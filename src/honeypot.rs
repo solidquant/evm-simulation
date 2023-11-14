@@ -1,3 +1,4 @@
+use alloy_primitives::{Address, U160};
 use ethers::types::{Block, BlockId, BlockNumber, H160, H256, U256, U64};
 use ethers_providers::Middleware;
 use log::info;
@@ -141,6 +142,16 @@ impl<M: Middleware + 'static> HoneypotFilter<M> {
                     // skip if test_tokens was already tested
                     continue;
                 }
+                
+                // Check if the token contract is proxy
+                // If it's proxy contract, we put that into invalid token list without any additional validations
+                // NOTE: use big endian to convert H160 bytes into U160
+                let is_proxy_contr = self.simulator.is_proxy(Address::from(U160::from_be_bytes(test_token.0)));
+                if is_proxy_contr {
+                    info!("⚠️ [{}] {} is proxy", idx, test_token);
+                    self.honeypot.insert(test_token, true);
+                    continue;
+                }    
 
                 // We take extra measures to filter out the pools with too little liquidity
                 // Using the below amount to test swaps, we know that there's enough liquidity in the pool
