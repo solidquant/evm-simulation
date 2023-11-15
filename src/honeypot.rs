@@ -15,18 +15,18 @@ const TAX_CRITERIA: f64 = 0.1;
 #[derive(Debug, Clone)]
 pub struct SafeTokens {
     pub weth: H160,
-    pub usdt: H160,
-    pub usdc: H160,
-    pub dai: H160,
+    // pub usdt: H160,
+    // pub usdc: H160,
+    // pub dai: H160,
 }
 
 impl SafeTokens {
     pub fn new() -> Self {
         Self {
-            usdt: H160::from_str("0xdAC17F958D2ee523a2206206994597C13D831ec7").unwrap(),
+            // usdt: H160::from_str("0xdAC17F958D2ee523a2206206994597C13D831ec7").unwrap(),
             weth: H160::from_str("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2").unwrap(),
-            usdc: H160::from_str("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48").unwrap(),
-            dai: H160::from_str("0x6B175474E89094C44Da98b954EedeAC495271d0F").unwrap(),
+            // usdc: H160::from_str("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48").unwrap(),
+            // dai: H160::from_str("0x6B175474E89094C44Da98b954EedeAC495271d0F").unwrap(),
         }
     }
 }
@@ -83,10 +83,10 @@ impl<M: Middleware + 'static> HoneypotFilter<M> {
             .unwrap();
 
         for token in [
-            self.safe_tokens.usdt,
+            // self.safe_tokens.usdt,
             self.safe_tokens.weth,
-            self.safe_tokens.usdc,
-            self.safe_tokens.dai,
+            // self.safe_tokens.usdc,
+            // self.safe_tokens.dai,
         ] {
             if let std::collections::hash_map::Entry::Vacant(e) = self.safe_token_info.entry(token)
             {
@@ -160,13 +160,14 @@ impl<M: Middleware + 'static> HoneypotFilter<M> {
 
                 if safe_token == self.safe_tokens.weth {
                     amount_in_f64 = WETH_SWAP_AMOUNT;
-                } else if safe_token == self.safe_tokens.usdt {
-                    amount_in_u32 = 10000;
-                } else if safe_token == self.safe_tokens.usdc {
-                    amount_in_u32 = 10000;
-                } else if safe_token == self.safe_tokens.dai {
-                    amount_in_u32 = 10000
-                }
+                } 
+                // else if safe_token == self.safe_tokens.usdt {
+                    // amount_in_u32 = 10000;
+                // } else if safe_token == self.safe_tokens.usdc {
+                    // amount_in_u32 = 10000;
+                // } else if safe_token == self.safe_tokens.dai {
+                    // amount_in_u32 = 10000
+                // }
 
                 // seed the simulator with some safe token balance
                 let safe_token_info = self.safe_token_info.get(&safe_token).unwrap();
