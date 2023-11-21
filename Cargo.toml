@@ -15,6 +15,7 @@ anyhow = "1.0.70"
 serde = "1.0.145"
 serde_json = "1.0"
 itertools = "0.11.0"
+thiserror = "1.0.50"
 
 cfmms = "*"
 ethers-flashbots = { git = "https://github.com/onbjerg/ethers-flashbots" }
@@ -25,9 +26,9 @@ ethers-contract = "2.0"
 eth-encode-packed = "0.1.0"
 
 # foundry
-foundry-evm = { git = "https://github.com/foundry-rs/foundry", rev = "799b82071cca5f58e1ad3df0bfb1f920ff78407d" }
-anvil = { git = "https://github.com/foundry-rs/foundry", rev = "799b82071cca5f58e1ad3df0bfb1f920ff78407d" }
-foundry-utils = { git = "https://github.com/foundry-rs/foundry", rev = "799b82071cca5f58e1ad3df0bfb1f920ff78407d" }
+foundry-evm = { git = "https://github.com/foundry-rs/foundry", rev = "3e962e2efe17396886fcb1fd141ccf4204cd3a21" }
+anvil = { git = "https://github.com/foundry-rs/foundry", rev = "3e962e2efe17396886fcb1fd141ccf4204cd3a21" }
+foundry-utils = { git = "https://github.com/foundry-rs/foundry", rev = "3e962e2efe17396886fcb1fd141ccf4204cd3a21" }
 
 # alloy
 alloy-primitives = "0.4.2"
@@ -39,23 +40,25 @@ indoc = "2"
 fern = { version = "0.6.2", features = ["colored"] }
 chrono = "0.4.23"
 csv = "1.2.2"
+ruint = "1.11.0"
+bitflags = "2.4.1"
 
 [patch.crates-io]
-ethers = { git = "https://github.com/gakonst/ethers-rs", rev = "efdc8d43318b818178c93a19a42b2b7e49e678eb" }
-ethers-addressbook = { git = "https://github.com/gakonst/ethers-rs", rev = "efdc8d43318b818178c93a19a42b2b7e49e678eb" }
-ethers-core = { git = "https://github.com/gakonst/ethers-rs", rev = "efdc8d43318b818178c93a19a42b2b7e49e678eb" }
-ethers-contract = { git = "https://github.com/gakonst/ethers-rs", rev = "efdc8d43318b818178c93a19a42b2b7e49e678eb" }
-ethers-contract-abigen = { git = "https://github.com/gakonst/ethers-rs", rev = "efdc8d43318b818178c93a19a42b2b7e49e678eb" }
-ethers-providers = { git = "https://github.com/gakonst/ethers-rs", rev = "efdc8d43318b818178c93a19a42b2b7e49e678eb" }
-ethers-signers = { git = "https://github.com/gakonst/ethers-rs", rev = "efdc8d43318b818178c93a19a42b2b7e49e678eb" }
-ethers-middleware = { git = "https://github.com/gakonst/ethers-rs", rev = "efdc8d43318b818178c93a19a42b2b7e49e678eb" }
-ethers-etherscan = { git = "https://github.com/gakonst/ethers-rs", rev = "efdc8d43318b818178c93a19a42b2b7e49e678eb" }
-ethers-solc = { git = "https://github.com/gakonst/ethers-rs", rev = "efdc8d43318b818178c93a19a42b2b7e49e678eb" }
-
-foundry-compilers = { git = "https://github.com/foundry-rs/compilers", rev = "9d205574ffc60f454d972eb101e04f2c4c82179d" }
-foundry-block-explorers = { git = "https://github.com/foundry-rs/block-explorers", rev = "5cbf6d32fa1ba39bc06a0d2b6202a021b3b8f0ff" }
+ethers = { git = "https://github.com/gakonst/ethers-rs", rev = "b4c366c964106b274e2eb528ac44eebc9bb49551" }
+ethers-addressbook = { git = "https://github.com/gakonst/ethers-rs", rev = "b4c366c964106b274e2eb528ac44eebc9bb49551" }
+ethers-core = { git = "https://github.com/gakonst/ethers-rs", rev = "b4c366c964106b274e2eb528ac44eebc9bb49551" }
+ethers-contract = { git = "https://github.com/gakonst/ethers-rs", rev = "b4c366c964106b274e2eb528ac44eebc9bb49551" }
+ethers-contract-abigen = { git = "https://github.com/gakonst/ethers-rs", rev = "b4c366c964106b274e2eb528ac44eebc9bb49551" }
+ethers-providers = { git = "https://github.com/gakonst/ethers-rs", rev = "b4c366c964106b274e2eb528ac44eebc9bb49551" }
+ethers-signers = { git = "https://github.com/gakonst/ethers-rs", rev = "b4c366c964106b274e2eb528ac44eebc9bb49551" }
+ethers-middleware = { git = "https://github.com/gakonst/ethers-rs", rev = "b4c366c964106b274e2eb528ac44eebc9bb49551" }
+ethers-etherscan = { git = "https://github.com/gakonst/ethers-rs", rev = "b4c366c964106b274e2eb528ac44eebc9bb49551" }
+ethers-solc = { git = "https://github.com/gakonst/ethers-rs", rev = "b4c366c964106b274e2eb528ac44eebc9bb49551" }
 
 alloy-dyn-abi = { git = "https://github.com/alloy-rs/core/" }
 alloy-primitives = { git = "https://github.com/alloy-rs/core/" }
 alloy-json-abi = { git = "https://github.com/alloy-rs/core/" }
 alloy-sol-types = { git = "https://github.com/alloy-rs/core/" }
+
+revm = { git = "https://github.com/bluealloy/revm", rev = "1609e07c68048909ad1682c98cf2b9baa76310b5" }
+revm-primitives = { git = "https://github.com/bluealloy/revm", rev = "1609e07c68048909ad1682c98cf2b9baa76310b5" }
