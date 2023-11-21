@@ -26,9 +26,9 @@ ethers-contract = "2.0"
 eth-encode-packed = "0.1.0"
 
 # foundry
-foundry-evm = { git = "https://github.com/foundry-rs/foundry", rev = "c0a9975f152556b696ad74cc8da618439d6f9e67" }
-anvil = { git = "https://github.com/foundry-rs/foundry", rev = "c0a9975f152556b696ad74cc8da618439d6f9e67" }
-foundry-utils = { git = "https://github.com/foundry-rs/foundry", rev = "c0a9975f152556b696ad74cc8da618439d6f9e67" }
+foundry-evm = { git = "https://github.com/foundry-rs/foundry", rev = "3bab117ec76dc1cd63aa6b8ca25eaaef909f2535" }
+anvil = { git = "https://github.com/foundry-rs/foundry", rev = "3bab117ec76dc1cd63aa6b8ca25eaaef909f2535" }
+foundry-utils = { git = "https://github.com/foundry-rs/foundry", rev = "3bab117ec76dc1cd63aa6b8ca25eaaef909f2535" }
 
 # alloy
 alloy-primitives = "0.4.2"
@@ -56,12 +56,9 @@ ethers-etherscan = { git = "https://github.com/gakonst/ethers-rs", rev = "4e09be
 ethers-solc = { git = "https://github.com/gakonst/ethers-rs", rev = "4e09be88730045dd6c4ed8a4e198a9956931e7bd" }
 
 alloy-dyn-abi = { git = "https://github.com/alloy-rs/core/" }
-alloy-json-abi = { git = "https://github.com/alloy-rs/core/" }
 alloy-primitives = { git = "https://github.com/alloy-rs/core/" }
-alloy-sol-macro = { git = "https://github.com/alloy-rs/core/" }
+alloy-json-abi = { git = "https://github.com/alloy-rs/core/" }
 alloy-sol-types = { git = "https://github.com/alloy-rs/core/" }
-alloy-sol-type-parser = { git = "https://github.com/alloy-rs/core/" }
-syn-solidity = { git = "https://github.com/alloy-rs/core/" }
 
 revm = { git = "https://github.com/bluealloy/revm", rev = "1609e07c68048909ad1682c98cf2b9baa76310b5" }
 revm-primitives = { git = "https://github.com/bluealloy/revm", rev = "1609e07c68048909ad1682c98cf2b9baa76310b5" }
