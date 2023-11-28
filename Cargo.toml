@@ -52,10 +52,12 @@ ethers-middleware = { git = "https://github.com/gakonst/ethers-rs", rev = "4e09b
 ethers-etherscan = { git = "https://github.com/gakonst/ethers-rs", rev = "4e09be88730045dd6c4ed8a4e198a9956931e7bd" }
 ethers-solc = { git = "https://github.com/gakonst/ethers-rs", rev = "4e09be88730045dd6c4ed8a4e198a9956931e7bd" }
 
-alloy-dyn-abi = { git = "https://github.com/alloy-rs/core/" }
-alloy-primitives = { git = "https://github.com/alloy-rs/core/" }
-alloy-json-abi = { git = "https://github.com/alloy-rs/core/" }
-alloy-sol-types = { git = "https://github.com/alloy-rs/core/" }
+alloy-dyn-abi = { git = "https://github.com/alloy-rs/core/", rev = "a707bcd7cd3979532296d9a8fc441b836f9c7168" }
+alloy-primitives = { git = "https://github.com/alloy-rs/core/", rev = "a707bcd7cd3979532296d9a8fc441b836f9c7168" }
+alloy-json-abi = { git = "https://github.com/alloy-rs/core/", rev = "a707bcd7cd3979532296d9a8fc441b836f9c7168" }
+alloy-sol-types = { git = "https://github.com/alloy-rs/core/", rev = "a707bcd7cd3979532296d9a8fc441b836f9c7168" }
+
+foundry-compilers = { git = "https://github.com/foundry-rs/compilers", rev = "816184ad7a47996f3382dc73dc52566fb12fb3df" }
 
 revm = { git = "https://github.com/bluealloy/revm", rev = "1609e07c68048909ad1682c98cf2b9baa76310b5" }
 revm-primitives = { git = "https://github.com/bluealloy/revm", rev = "1609e07c68048909ad1682c98cf2b9baa76310b5" }
