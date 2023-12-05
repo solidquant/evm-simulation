@@ -65,12 +65,8 @@ impl<M: Middleware + 'static> SandwichSimulator<M> {
                     // load storage values before cloning db
                     // storage values required to simulate swap: token0/token1 balance & pool reserves
                     let pool = verified_pools_map.get(touched_pool).unwrap();
-                    _ = self
-                        .simulator
-                        .token_balance_of(pool.token0, simulator_address);
-                    _ = self
-                        .simulator
-                        .token_balance_of(pool.token1, simulator_address);
+                    _ = self.simulator.token_balance_of(pool.token0, simulator_address);
+                    _ = self.simulator.token_balance_of(pool.token1, simulator_address);
                     _ = self.simulator.v2_pool_get_reserves(*touched_pool);
 
                     let sandwich = Sandwich {
@@ -123,10 +119,7 @@ pub fn simulate_sandwich_bundle<M: Middleware + 'static>(
     let target_pool = sandwich.target_pool;
 
     info!("\n[🔮 Sandwich Bundle Simulation]");
-    info!(
-        "- Pool: {:?} / Token: {:?}",
-        target_pool.address, target_token.symbol
-    );
+    info!("- Pool: {:?} / Token: {:?}", target_pool.address, target_token.symbol);
     info!("- Amount in: {:?} {:?}", amount_in, target_token.symbol);
 
     let (input_token, output_token) = if target_pool.token0 == target_token.address {

@@ -75,10 +75,7 @@ impl<M: Middleware + 'static> HoneypotFilter<M> {
         let nonce = self
             .simulator
             .provider
-            .get_transaction_count(
-                owner,
-                Some(BlockId::Number(BlockNumber::Number(*block_number))),
-            )
+            .get_transaction_count(owner, Some(BlockId::Number(BlockNumber::Number(*block_number))))
             .await
             .unwrap();
 
@@ -142,16 +139,17 @@ impl<M: Middleware + 'static> HoneypotFilter<M> {
                     // skip if test_tokens was already tested
                     continue;
                 }
-                
+
                 // Check if the token contract is proxy
                 // If it's proxy contract, we put that into invalid token list without any additional validations
                 // NOTE: use big endian to convert H160 bytes into U160
-                let is_proxy_contr = self.simulator.is_proxy(Address::from(U160::from_be_bytes(test_token.0)));
+                let is_proxy_contr =
+                    self.simulator.is_proxy(Address::from(U160::from_be_bytes(test_token.0)));
                 if is_proxy_contr {
                     info!("⚠️ [{}] {} is proxy", idx, test_token);
                     self.honeypot.insert(test_token, true);
                     continue;
-                }    
+                }
 
                 // We take extra measures to filter out the pools with too little liquidity
                 // Using the below amount to test swaps, we know that there's enough liquidity in the pool
@@ -160,13 +158,13 @@ impl<M: Middleware + 'static> HoneypotFilter<M> {
 
                 if safe_token == self.safe_tokens.weth {
                     amount_in_f64 = WETH_SWAP_AMOUNT;
-                } 
+                }
                 // else if safe_token == self.safe_tokens.usdt {
-                    // amount_in_u32 = 10000;
+                // amount_in_u32 = 10000;
                 // } else if safe_token == self.safe_tokens.usdc {
-                    // amount_in_u32 = 10000;
+                // amount_in_u32 = 10000;
                 // } else if safe_token == self.safe_tokens.dai {
-                    // amount_in_u32 = 10000
+                // amount_in_u32 = 10000
                 // }
 
                 // seed the simulator with some safe token balance
@@ -181,10 +179,7 @@ impl<M: Middleware + 'static> HoneypotFilter<M> {
                     amount_in_u32,
                 );
 
-                info!(
-                    "✅ [{}] {} -> {:?}",
-                    idx, safe_token_info.symbol, test_token
-                );
+                info!("✅ [{}] {} -> {:?}", idx, safe_token_info.symbol, test_token);
 
                 let amount_in = if safe_token == self.safe_tokens.weth {
                     U256::from((amount_in_f64 * 10f64.powi(18)) as u64)
@@ -212,11 +207,8 @@ impl<M: Middleware + 'static> HoneypotFilter<M> {
                 };
 
                 let out_ratio = out.0.checked_sub(out.1).unwrap();
-                let buy_tax_rate = out_ratio
-                    .checked_mul(U256::from(10000))
-                    .unwrap()
-                    .checked_div(out.0)
-                    .unwrap();
+                let buy_tax_rate =
+                    out_ratio.checked_mul(U256::from(10000)).unwrap().checked_div(out.0).unwrap();
                 let buy_tax_rate = buy_tax_rate.as_u64() as f64 / 10000.0;
                 self.buy_tax = buy_tax_rate;
 

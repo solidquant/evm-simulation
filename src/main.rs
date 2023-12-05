@@ -24,11 +24,7 @@ async fn main() -> Result<()> {
     let ws = Ws::connect(&env.wss_url).await.unwrap();
     let provider = Arc::new(Provider::new(ws));
 
-    let block = provider
-        .get_block(BlockNumber::Latest)
-        .await
-        .unwrap()
-        .unwrap();
+    let block = provider.get_block(BlockNumber::Latest).await.unwrap().unwrap();
 
     let factories = vec![
         (
@@ -48,9 +44,7 @@ async fn main() -> Result<()> {
 
     let mut honeypot_filter = HoneypotFilter::new(provider.clone(), block.clone());
     honeypot_filter.setup().await;
-    honeypot_filter
-        .filter_tokens(&pools[0..5000].to_vec())
-        .await;
+    honeypot_filter.filter_tokens(&pools[0..5000].to_vec()).await;
 
     let verified_pools: Vec<Pool> = pools
         .into_iter()
@@ -68,9 +62,7 @@ async fn main() -> Result<()> {
     let arb_paths = generate_triangular_paths(&verified_pools, usdt);
 
     let owner = H160::from_str("0x001a06BF8cE4afdb3f5618f6bafe35e9Fc09F187").unwrap();
-    let amount_in = U256::from(10)
-        .checked_mul(U256::from(10).pow(U256::from(6)))
-        .unwrap();
+    let amount_in = U256::from(10).checked_mul(U256::from(10).pow(U256::from(6))).unwrap();
     let balance_slot = honeypot_filter.balance_slots.get(&usdt).unwrap();
     let target_token = honeypot_filter.safe_token_info.get(&usdt).unwrap();
     for path in &arb_paths {

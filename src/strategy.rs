@@ -151,21 +151,13 @@ pub async fn event_handler(provider: Arc<Provider<Ws>>, event_sender: Sender<Eve
         DexVariant::UniswapV2,
         10794229u64,
     )];
-    let pools = load_all_pools(env.wss_url.clone(), factories)
-        .await
-        .unwrap();
+    let pools = load_all_pools(env.wss_url.clone(), factories).await.unwrap();
 
-    let block = provider
-        .get_block(BlockNumber::Latest)
-        .await
-        .unwrap()
-        .unwrap();
+    let block = provider.get_block(BlockNumber::Latest).await.unwrap().unwrap();
 
     let mut honeypot_filter = HoneypotFilter::new(provider.clone(), block.clone());
     honeypot_filter.setup().await;
-    let _ = honeypot_filter
-        .filter_tokens(&pools[0..3000].to_vec())
-        .await;
+    let _ = honeypot_filter.filter_tokens(&pools[0..3000].to_vec()).await;
 
     // filter out pools that use unverified tokens
     let verified_pools: Vec<Pool> = pools

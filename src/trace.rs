@@ -84,10 +84,8 @@ impl<M: Middleware + 'static> EvmTracer<M> {
                     PreStateFrame::Default(prestate_mode) => {
                         let token_info =
                             prestate_mode.0.get(&token).ok_or(anyhow!("no token key"))?;
-                        let touched_storage = token_info
-                            .storage
-                            .clone()
-                            .ok_or(anyhow!("no storage values"))?;
+                        let touched_storage =
+                            token_info.storage.clone().ok_or(anyhow!("no storage values"))?;
                         for i in 0..20 {
                             let slot = keccak256(&abi::encode(&[
                                 abi::Token::Address(owner),
@@ -142,10 +140,8 @@ impl<M: Middleware + 'static> EvmTracer<M> {
                     PreStateFrame::Default(prestate_mode) => {
                         let token_info =
                             prestate_mode.0.get(&pool).ok_or(anyhow!("no token key"))?;
-                        let touched_storage = token_info
-                            .storage
-                            .clone()
-                            .ok_or(anyhow!("no storage values"))?;
+                        let touched_storage =
+                            token_info.storage.clone().ok_or(anyhow!("no storage values"))?;
                         let slot = touched_storage
                             .keys()
                             .next()

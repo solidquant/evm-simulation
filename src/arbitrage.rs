@@ -50,11 +50,8 @@ pub fn simulate_triangular_arbitrage<M: Middleware + 'static>(
     for n in 0..arb.path.nhop {
         let pool = arb.path.get_pool(n);
         let zero_for_one = arb.path.get_zero_for_one(n);
-        let (input_token, output_token) = if zero_for_one {
-            (pool.token0, pool.token1)
-        } else {
-            (pool.token1, pool.token0)
-        };
+        let (input_token, output_token) =
+            if zero_for_one { (pool.token0, pool.token1) } else { (pool.token1, pool.token0) };
 
         let out = simulator.v2_simulate_swap(
             amount_out,
@@ -70,10 +67,7 @@ pub fn simulate_triangular_arbitrage<M: Middleware + 'static>(
     let profit = (amount_out.as_u64() as i128) - (arb.amount_in.as_u64() as i128);
     let divisor = 10.0_f64.powi(target_token.decimals as i32);
     let profit_in_target_token = (profit as f64) / divisor;
-    info!(
-        "▶️ Profit: {:?} {}",
-        profit_in_target_token, target_token.symbol
-    );
+    info!("▶️ Profit: {:?} {}", profit_in_target_token, target_token.symbol);
 
     Ok(profit)
 }

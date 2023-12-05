@@ -97,12 +97,7 @@ pub async fn load_all_pools(
     let dexes: Vec<_> = factories
         .into_iter()
         .map(|(address, variant, number)| {
-            Dex::new(
-                H160::from_str(address).unwrap(),
-                variant,
-                number,
-                Some(3000),
-            )
+            Dex::new(H160::from_str(address).unwrap(), variant, number, Some(3000))
         })
         .collect();
 

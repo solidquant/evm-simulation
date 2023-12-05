@@ -27,10 +27,9 @@ impl SimulatorABI {
         input_token: H160,
         output_token: H160,
     ) -> Result<Bytes> {
-        let calldata = self.abi.encode(
-            "v2SimulateSwap",
-            (amount_in, target_pool, input_token, output_token),
-        )?;
+        let calldata = self
+            .abi
+            .encode("v2SimulateSwap", (amount_in, target_pool, input_token, output_token))?;
         Ok(calldata)
     }
 
@@ -45,9 +44,7 @@ impl SimulatorABI {
         reserve_in: U256,
         reserve_out: U256,
     ) -> Result<Bytes> {
-        let calldata = self
-            .abi
-            .encode("getAmountOut", (amount_in, reserve_in, reserve_out))?;
+        let calldata = self.abi.encode("getAmountOut", (amount_in, reserve_in, reserve_out))?;
         Ok(calldata)
     }
 

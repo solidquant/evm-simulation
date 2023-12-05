@@ -47,9 +47,11 @@ pub static OPEN_ZEPPELIN_IMPLEMENTATION_SLOT: &str =
 pub static EIP_1882_LOGIC_SLOT: &str =
     "0xc5f16f0fcc639fa48a6947836d9850f504798523bf8c9a3a87d5876cf622bcf7";
 
-pub static IMPLEMENTATION_SLOTS: Lazy<Vec<U256>> = Lazy::new(|| {vec![
-    U256::from(EIP_1967_LOGIC_SLOT),
-    U256::from(EIP_1967_BEACON_SLOT),
-    U256::from(OPEN_ZEPPELIN_IMPLEMENTATION_SLOT),
-    U256::from(EIP_1882_LOGIC_SLOT),
-]});
+pub static IMPLEMENTATION_SLOTS: Lazy<Vec<U256>> = Lazy::new(|| {
+    vec![
+        U256::from(EIP_1967_LOGIC_SLOT),
+        U256::from(EIP_1967_BEACON_SLOT),
+        U256::from(OPEN_ZEPPELIN_IMPLEMENTATION_SLOT),
+        U256::from(EIP_1882_LOGIC_SLOT),
+    ]
+});

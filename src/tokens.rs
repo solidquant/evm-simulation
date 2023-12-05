@@ -6,7 +6,7 @@ use ethers_core::types::{BlockId, BlockNumber, TxHash, H160, U256};
 use std::{str::FromStr, sync::Arc};
 use tokio::task::JoinSet;
 
-use crate::constants::{ZERO_ADDRESS, IMPLEMENTATION_SLOTS};
+use crate::constants::{IMPLEMENTATION_SLOTS, ZERO_ADDRESS};
 
 #[derive(Debug, Clone)]
 pub struct Token {

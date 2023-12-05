@@ -1,4 +1,4 @@
-use alloy_primitives::{B256, Address};
+use alloy_primitives::{Address, B256};
 use anyhow::{anyhow, Result};
 use bytes::Bytes;
 use ethers::abi;
@@ -18,7 +18,7 @@ use foundry_evm::{
 use foundry_utils::types::{ToAlloy, ToEthers};
 use std::{collections::BTreeSet, str::FromStr, sync::Arc};
 
-use crate::constants::{SIMULATOR_CODE, IMPLEMENTATION_SLOTS};
+use crate::constants::{IMPLEMENTATION_SLOTS, SIMULATOR_CODE};
 use crate::interfaces::{pool::V2PoolABI, simulator::SimulatorABI, token::TokenABI};
 
 #[derive(Clone)]
@@ -122,29 +122,12 @@ impl<M: Middleware + 'static> EvmSimulator<M> {
         };
 
         let output = match result {
-            ExecutionResult::Success {
-                gas_used,
-                gas_refunded,
-                output,
-                ..
-            } => match output {
-                Output::Call(o) => TxResult {
-                    output: o.into(),
-                    gas_used,
-                    gas_refunded,
-                },
-                Output::Create(o, _) => TxResult {
-                    output: o.into(),
-                    gas_used,
-                    gas_refunded,
-                },
+            ExecutionResult::Success { gas_used, gas_refunded, output, .. } => match output {
+                Output::Call(o) => TxResult { output: o.into(), gas_used, gas_refunded },
+                Output::Create(o, _) => TxResult { output: o.into(), gas_used, gas_refunded },
             },
             ExecutionResult::Revert { gas_used, output } => {
-                return Err(anyhow!(
-                    "EVM REVERT: {:?} / Gas used: {:?}",
-                    output,
-                    gas_used
-                ))
+                return Err(anyhow!("EVM REVERT: {:?} / Gas used: {:?}", output, gas_used))
             }
             ExecutionResult::Halt { reason, .. } => return Err(anyhow!("EVM HALT: {:?}", reason)),
         };
@@ -167,37 +150,18 @@ impl<M: Middleware + 'static> EvmSimulator<M> {
                 Err(e) => return Err(anyhow!("EVM call failed: {:?}", e)),
             };
         } else {
-            let ref_tx = self
-                .evm
-                .transact_ref()
-                .map_err(|e| anyhow!("EVM staticcall failed: {:?}", e))?;
+            let ref_tx =
+                self.evm.transact_ref().map_err(|e| anyhow!("EVM staticcall failed: {:?}", e))?;
             result = ref_tx.result;
         }
 
         let output = match result {
-            ExecutionResult::Success {
-                gas_used,
-                gas_refunded,
-                output,
-                ..
-            } => match output {
-                Output::Call(o) => TxResult {
-                    output: o.into(),
-                    gas_used,
-                    gas_refunded,
-                },
-                Output::Create(o, _) => TxResult {
-                    output: o.into(),
-                    gas_used,
-                    gas_refunded,
-                },
+            ExecutionResult::Success { gas_used, gas_refunded, output, .. } => match output {
+                Output::Call(o) => TxResult { output: o.into(), gas_used, gas_refunded },
+                Output::Create(o, _) => TxResult { output: o.into(), gas_used, gas_refunded },
             },
             ExecutionResult::Revert { gas_used, output } => {
-                return Err(anyhow!(
-                    "EVM REVERT: {:?} / Gas used: {:?}",
-                    output,
-                    gas_used
-                ))
+                return Err(anyhow!("EVM REVERT: {:?} / Gas used: {:?}", output, gas_used))
             }
             ExecutionResult::Halt { reason, .. } => return Err(anyhow!("EVM HALT: {:?}", reason)),
         };
@@ -214,27 +178,15 @@ impl<M: Middleware + 'static> EvmSimulator<M> {
     }
 
     pub fn get_eth_balance(&mut self) -> U256 {
-        let acc = self
-            .evm
-            .db
-            .as_mut()
-            .unwrap()
-            .basic(self.owner.to_alloy())
-            .unwrap()
-            .unwrap();
+        let acc = self.evm.db.as_mut().unwrap().basic(self.owner.to_alloy()).unwrap().unwrap();
         acc.balance.to_ethers()
     }
 
     pub fn set_eth_balance(&mut self, balance: u32) {
-        let user_balance = rU256::from(balance)
-            .checked_mul(rU256::from(10).pow(rU256::from(18)))
-            .unwrap();
+        let user_balance =
+            rU256::from(balance).checked_mul(rU256::from(10).pow(rU256::from(18))).unwrap();
         let user_info = AccountInfo::new(user_balance, 0, KECCAK_EMPTY, Bytecode::default());
-        self.evm
-            .db
-            .as_mut()
-            .unwrap()
-            .insert_account_info(self.owner.to_alloy(), user_info);
+        self.evm.db.as_mut().unwrap().insert_account_info(self.owner.to_alloy(), user_info);
     }
 
     // ERC-20 Token functions
@@ -250,9 +202,8 @@ impl<M: Middleware + 'static> EvmSimulator<M> {
             abi::Token::Address(account),
             abi::Token::Uint(U256::from(slot)),
         ]));
-        let target_balance = rU256::from(balance)
-            .checked_mul(rU256::from(10).pow(rU256::from(decimals)))
-            .unwrap();
+        let target_balance =
+            rU256::from(balance).checked_mul(rU256::from(10).pow(rU256::from(decimals))).unwrap();
         self.evm
             .db
             .as_mut()
@@ -301,12 +252,8 @@ impl<M: Middleware + 'static> EvmSimulator<M> {
     // Simulator functions
     pub fn deploy_simulator(&mut self) {
         let code = Bytecode::new_raw((*SIMULATOR_CODE.0).into());
-        let contract_info = AccountInfo::new(
-            rU256::ZERO,
-            0,
-            B256::from_slice(&keccak256(code.bytes())[..]),
-            code,
-        );
+        let contract_info =
+            AccountInfo::new(rU256::ZERO, 0, B256::from_slice(&keccak256(code.bytes())[..]), code);
         self.evm
             .db
             .as_mut()
@@ -335,11 +282,7 @@ impl<M: Middleware + 'static> EvmSimulator<M> {
             value: U256::zero(),
             gas_limit: 5000000,
         };
-        let value = if commit {
-            self.call(tx)?
-        } else {
-            self.staticcall(tx)?
-        };
+        let value = if commit { self.call(tx)? } else { self.staticcall(tx)? };
         let out = self.simulator.v2_simulate_swap_output(value.output)?;
         Ok(out)
     }
@@ -350,9 +293,7 @@ impl<M: Middleware + 'static> EvmSimulator<M> {
         reserve_in: U256,
         reserve_out: U256,
     ) -> Result<U256> {
-        let calldata = self
-            .simulator
-            .get_amount_out_input(amount_in, reserve_in, reserve_out)?;
+        let calldata = self.simulator.get_amount_out_input(amount_in, reserve_in, reserve_out)?;
         let value = self.staticcall(Tx {
             caller: self.owner,
             transact_to: self.simulator_address,
@@ -364,25 +305,16 @@ impl<M: Middleware + 'static> EvmSimulator<M> {
         Ok(out)
     }
 
-    pub fn is_proxy(
-        &mut self,
-        token: Address,
-    ) -> bool {
+    pub fn is_proxy(&mut self, token: Address) -> bool {
         let mut is_proxy = false;
-               
+
         for slot in IMPLEMENTATION_SLOTS.iter() {
-            let impl_addr = self
-            
-                .evm
-                .db
-                .as_mut()
-                .unwrap()
-                .storage(token, slot.to_alloy()).unwrap();
+            let impl_addr = self.evm.db.as_mut().unwrap().storage(token, slot.to_alloy()).unwrap();
             if impl_addr.count_zeros() != 256 {
                 is_proxy = true;
             }
         }
-    
+
         is_proxy
     }
 }
